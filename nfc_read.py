@@ -2,6 +2,7 @@
 NFC Reader — ACR122U-A9
 pip3 install pyscard
 python3 nfc_read.py
+###
 """
 
 from smartcard.CardMonitoring import CardMonitor, CardObserver
