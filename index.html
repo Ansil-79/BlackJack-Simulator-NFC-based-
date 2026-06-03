@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Blackjack — Tap to Play</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&display=swap');
+
+/* ── Reset & tokens ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green:      #1a6b3a;
+  --green-mid:  #1e7d44;
+  --green-felt: #145c30;
+  --gold:       #c9a84c;
+  --gold-light: #e8c97a;
+  --cream:      #f5f0e8;
+  --dark:       #0d1f0f;
+  --card-w:     68px;
+  --card-h:     96px;
+  --radius:     10px;
+  --nfc-blue:   #4aa8ff;
+  --nfc-pulse:  #7ec8ff;
+}
+
+body {
+  font-family: 'DM Mono', monospace;
+  background: var(--dark);
+  color: var(--cream);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* ── NFC Tap Screen ──────────────────────────────────────────── */
+#nfc-screen {
+  position: fixed; inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, #0d2a14 0%, #060e07 100%);
+  z-index: 100;
+  gap: 32px;
+  transition: opacity 0.6s ease;
+}
+#nfc-screen.hidden { opacity: 0; pointer-events: none; }
+
+.nfc-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 42px;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.nfc-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Animated NFC ring */
+.nfc-ring-wrap {
+  position: relative;
+  width: 160px; height: 160px;
+  display: flex; align-items: center; justify-content: center;
+}
+.nfc-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid var(--nfc-blue);
+  animation: ripple 2s ease-out infinite;
+  opacity: 0;
+}
+.nfc-ring:nth-child(1) { width: 60px; height: 60px; animation-delay: 0s; }
+.nfc-ring:nth-child(2) { width: 100px; height: 100px; animation-delay: 0.4s; }
+.nfc-ring:nth-child(3) { width: 140px; height: 140px; animation-delay: 0.8s; }
+
+@keyframes ripple {
+  0%   { opacity: 0.8; transform: scale(0.9); }
+  100% { opacity: 0;   transform: scale(1.1); }
+}
+
+.nfc-icon {
+  font-size: 40px;
+  z-index: 1;
+}
+
+.nfc-label {
+  font-size: 16px;
+  color: var(--nfc-blue);
+  letter-spacing: 1px;
+}
+
+/* ── Amount Modal ────────────────────────────────────────────── */
+#amount-modal {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.75);
+  z-index: 200;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#amount-modal.show { opacity: 1; pointer-events: all; }
+
+.modal-box {
+  background: linear-gradient(160deg, #1a3d22, #0f2416);
+  border: 1px solid var(--gold);
+  border-radius: 16px;
+  padding: 36px 40px;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 0 60px rgba(0,0,0,0.6);
+}
+
+.modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  color: var(--gold);
+  text-align: center;
+}
+
+.modal-balance {
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 1px;
+}
+
+.modal-balance span {
+  color: var(--gold-light);
+  font-size: 28px;
+  display: block;
+  margin-top: 4px;
+  font-family: 'Playfair Display', serif;
+}
+
+.modal-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-btn {
+  background: rgba(201,168,76,0.12);
+  border: 1px solid var(--gold);
+  color: var(--gold-light);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  padding: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  letter-spacing: 1px;
+}
+.modal-btn:hover { background: rgba(201,168,76,0.25); transform: translateY(-1px); }
+.modal-btn.primary {
+  background: var(--gold);
+  color: var(--dark);
+  font-weight: 600;
+}
+.modal-btn.primary:hover { background: var(--gold-light); }
+
+.custom-row {
+  display: flex;
+  gap: 8px;
+}
+.custom-row input {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 8px;
+  color: var(--cream);
+  font-family: 'DM Mono', monospace;
+  font-size: 15px;
+  padding: 10px 14px;
+  outline: none;
+}
+.custom-row input:focus { border-color: var(--gold); }
+
+/* ── Write-back screen ───────────────────────────────────────── */
+#write-screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.85);
+  z-index: 200;
+  gap: 24px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#write-screen.show { opacity: 1; pointer-events: all; }
+
+.write-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px;
+  color: var(--gold);
+  text-align: center;
+}
+.write-amount {
+  font-size: 48px;
+  font-family: 'Playfair Display', serif;
+  color: #4dff91;
+}
+.write-instruction {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+}
+
+/* ── Table ───────────────────────────────────────────────────── */
+#game-screen {
+  width: 100vw; height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+#game-screen.show { opacity: 1; pointer-events: all; }
+
+.table {
+  position: relative;
+  width: min(860px, 95vw);
+  height: min(560px, 90vh);
+  background: radial-gradient(ellipse at 50% 40%, var(--green-mid) 0%, var(--green-felt) 60%, #0f3d1c 100%);
+  border-radius: 50%;
+  border: 6px solid #5a3a12;
+  box-shadow: 0 0 0 3px #8a5a20, 0 0 80px rgba(0,0,0,0.7), inset 0 0 60px rgba(0,0,0,0.3);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: space-between;
+  padding: 32px 80px;
+}
+
+/* felt grain */
+.table::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.4; pointer-events: none;
+}
+
+.area { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; min-height: var(--card-h); }
+.dealer-area { margin-top: 8px; }
+.player-area { margin-bottom: 8px; }
+
+/* Score badge */
+.score-badge {
+  font-size: 11px;
+  background: rgba(0,0,0,0.4);
+  color: var(--gold-light);
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.area-wrap { display: flex; flex-direction: column; align-items: center; }
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  width: var(--card-w); height: var(--card-h);
+  background: #fafafa;
+  border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  border: 1.5px solid rgba(0,0,0,0.08);
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  transform: translateY(20px); opacity: 0;
+  animation: dealCard 0.35s ease forwards;
+}
+@keyframes dealCard {
+  to { transform: translateY(0); opacity: 1; }
+}
+.card.red  { color: #c0392b; }
+.card.black{ color: #1a1a1a; }
+
+.card.card-back {
+  background: linear-gradient(135deg, #1a3fa0 25%, #122d7a 25%, #122d7a 50%, #1a3fa0 50%, #1a3fa0 75%, #122d7a 75%);
+  background-size: 14px 14px;
+  border: 2px solid #2a4fb0;
+}
+
+/* ── HUD ─────────────────────────────────────────────────────── */
+.hud {
+  position: fixed;
+  top: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 24px; align-items: center;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(201,168,76,0.3);
+  border-radius: 40px;
+  padding: 8px 24px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  z-index: 50;
+}
+.hud-label { color: rgba(255,255,255,0.4); }
+.hud-value { color: var(--gold-light); font-family: 'Playfair Display', serif; font-size: 18px; }
+
+/* ── Bet controls ────────────────────────────────────────────── */
+.bet-bar {
+  position: absolute; bottom: 32px;
+  display: flex; gap: 12px; align-items: center;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 40px;
+  padding: 8px 16px;
+}
+.chip {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 3px dashed rgba(255,255,255,0.4);
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+  color: #fff;
+}
+.chip:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
+.chip.selected { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); transform: translateY(-4px); }
+.chip[data-v="5"]  { background: #2196f3; }
+.chip[data-v="10"] { background: #9c27b0; }
+.chip[data-v="25"] { background: #4caf50; }
+.chip[data-v="50"] { background: #f44336; }
+.chip[data-v="100"]{ background: #ff9800; }
+
+.bet-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(201,168,76,0.4);
+  color: var(--gold-light);
+  font-family: 'DM Mono', monospace;
+  font-size: 16px;
+  width: 64px;
+  text-align: center;
+  outline: none;
+}
+
+.deal-btn {
+  background: var(--gold);
+  color: var(--dark);
+  border: none;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-family: 'Playfair Display', serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.2s, transform 0.1s;
+}
+.deal-btn:hover { background: var(--gold-light); transform: scale(1.04); }
+.deal-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ── Action buttons ──────────────────────────────────────────── */
+.action-bar {
+  position: fixed; bottom: 24px;
+  display: none; gap: 10px;
+}
+.action-bar.show { display: flex; }
+
+.act-btn {
+  padding: 10px 22px;
+  border-radius: 24px;
+  border: 1.5px solid;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+.act-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+#btn-hit      { border-color: #4dff91; color: #4dff91; background: rgba(77,255,145,0.08); }
+#btn-stand    { border-color: #ff6b6b; color: #ff6b6b; background: rgba(255,107,107,0.08); }
+#btn-double   { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.08); }
+#btn-split    { border-color: var(--nfc-blue); color: var(--nfc-blue); background: rgba(74,168,255,0.08); }
+#btn-surrender{ border-color: #aaa; color: #aaa; background: rgba(170,170,170,0.08); }
+
+.act-btn:not(:disabled):hover { filter: brightness(1.2); transform: translateY(-2px); }
+
+/* ── Result overlay ──────────────────────────────────────────── */
+.result-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.6);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease;
+  border-radius: 50%;
+  z-index: 30;
+}
+.result-overlay.show { opacity: 1; }
+
+.result-text {
+  font-family: 'Playfair Display', serif;
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+}
+.result-overlay.win  .result-text { color: #4dff91; }
+.result-overlay.loss .result-text { color: #ff6b6b; }
+.result-overlay.push .result-text { color: var(--gold); }
+
+/* ── Toast ───────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  border: 1px solid rgba(201,168,76,0.3);
+  color: var(--cream);
+  font-size: 13px;
+  letter-spacing: 1px;
+  padding: 10px 24px;
+  border-radius: 30px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 300;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; }
+
+/* Chip pile on table for display */
+#chip-display {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<!-- ── NFC Tap Screen ── -->
+<div id="nfc-screen">
+  <div class="nfc-logo">Royal Table</div>
+  <div class="nfc-sub">Tap-to-Play Blackjack</div>
+  <div class="nfc-ring-wrap">
+    <div class="nfc-ring"></div>
+    <div class="nfc-ring"></div>
+    <div class="nfc-ring"></div>
+    <div class="nfc-icon">💳</div>
+  </div>
+  <div class="nfc-label" id="nfc-status">Tap your NFC card to begin</div>
+</div>
+
+<!-- ── Amount Modal ── -->
+<div id="amount-modal">
+  <div class="modal-box">
+    <div class="modal-title">Choose Your Buy-in</div>
+    <div class="modal-balance">
+      Card Balance
+      <span id="modal-balance-val">$0</span>
+    </div>
+    <div class="modal-options">
+      <button class="modal-btn primary" id="btn-use-all">Use Entire Balance</button>
+      <div class="custom-row">
+        <input type="number" id="custom-amount" placeholder="Custom amount" min="1"/>
+        <button class="modal-btn" id="btn-use-custom">Use</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Write-back screen ── -->
+<div id="write-screen">
+  <div class="write-title" id="cashout-title">💳 Tap Card</div>
+  <div class="write-amount" id="write-amount">+$0</div>
+  <div class="write-instruction">Tap your card to save balance</div>
+  <div class="nfc-ring-wrap" style="margin-top:8px">
+    <div class="nfc-ring"></div>
+    <div class="nfc-ring"></div>
+    <div class="nfc-ring"></div>
+    <div class="nfc-icon">💳</div>
+  </div>
+  <button id="btn-cancel-write" onclick="cancelCashout()" style="
+    margin-top: 12px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.45);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    padding: 8px 24px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: none;
+  " onmouseover="this.style.borderColor='rgba(255,255,255,0.5)';this.style.color='rgba(255,255,255,0.7)'"
+     onmouseout="this.style.borderColor='rgba(255,255,255,0.25)';this.style.color='rgba(255,255,255,0.45)'">
+    CANCEL
+  </button>
+</div>
+
+<!-- ── HUD ── -->
+<div class="hud" id="hud" style="display:none">
+  <span class="hud-label">BALANCE</span>
+  <span class="hud-value" id="hud-balance">$0</span>
+  <span style="color:rgba(255,255,255,0.15)">|</span>
+  <span class="hud-label">BET</span>
+  <span class="hud-value" id="hud-bet">$0</span>
+  <span style="color:rgba(255,255,255,0.15)">|</span>
+  <button onclick="initiateCashout()" style="
+    background:var(--gold);color:var(--dark);border:none;
+    border-radius:20px;padding:4px 16px;font-family:'DM Mono',monospace;
+    font-size:11px;font-weight:600;letter-spacing:1px;cursor:pointer;
+    transition:background 0.2s
+  ">CASH OUT</button>
+</div>
+
+<!-- ── Game Screen ── -->
+<div id="game-screen">
+  <div class="table">
+    <!-- Dealer -->
+    <div class="area-wrap">
+      <div class="score-badge" id="dealer-score">Dealer</div>
+      <div class="area dealer-area" id="dealer-cards"></div>
+    </div>
+
+    <div id="chip-display">Royal Table Casino</div>
+
+    <!-- Player -->
+    <div class="area-wrap">
+      <div class="area player-area" id="player-cards"></div>
+      <div class="score-badge" id="player-score">Player</div>
+    </div>
+
+    <!-- Bet bar -->
+    <div class="bet-bar" id="bet-bar">
+      <div class="chip" data-v="5">$5</div>
+      <div class="chip" data-v="10">$10</div>
+      <div class="chip" data-v="25">$25</div>
+      <div class="chip" data-v="50">$50</div>
+      <div class="chip" data-v="100">$100</div>
+      <input type="number" class="bet-input" id="bet-display" readonly value="0"/>
+      <button class="deal-btn" id="deal-btn" disabled>DEAL</button>
+    </div>
+
+    <!-- Result -->
+    <div class="result-overlay" id="result-overlay">
+      <div class="result-text" id="result-text"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Action bar -->
+<div class="action-bar" id="action-bar">
+  <button class="act-btn" id="btn-surrender">Surrender</button>
+  <button class="act-btn" id="btn-hit">Hit</button>
+  <button class="act-btn" id="btn-stand">Stand</button>
+  <button class="act-btn" id="btn-double">Double</button>
+  <button class="act-btn" id="btn-split">Split</button>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  blackjack.js inlined
+// ════════════════════════════════════════════════════════════
+class Card {
+  constructor(suit, rank) {
+    this.suit = suit; this.rank = rank;
+    this.color = (suit==='♥'||suit==='♦') ? 'red' : 'black';
+    if (typeof Card._id === 'undefined') Card._id = 1;
+    this.id = Card._id++;
+  }
+  getValue() {
+    if (['J','Q','K'].includes(this.rank)) return 10;
+    if (this.rank==='A') return 11;
+    return parseInt(this.rank);
+  }
+  toString() { return `${this.rank}${this.suit}`; }
+}
+
+class Deck {
+  constructor() {
+    this.cards = [];
+    for (let s of ['♠','♣','♥','♦'])
+      for (let r of ['A','2','3','4','5','6','7','8','9','10','J','Q','K'])
+        this.cards.push(new Card(s,r));
+  }
+}
+
+class Shoe {
+  constructor(n) {
+    this.cards = []; this.discard = []; this.n = n;
+    this.init();
+  }
+  init() {
+    this.cards = [];
+    for (let i=0;i<this.n;i++) this.cards.push(...new Deck().cards);
+    this.shuffle();
+  }
+  shuffle() {
+    for (let i=this.cards.length-1;i>0;i--) {
+      const j=Math.floor(Math.random()*(i+1));
+      [this.cards[i],this.cards[j]]=[this.cards[j],this.cards[i]];
+    }
+  }
+  deal() {
+    if (!this.cards.length) {
+      this.cards = this.discard.length ? [...this.discard] : (() => { this.init(); return this.cards; })();
+      this.discard = []; this.shuffle();
+    }
+    return this.cards.pop();
+  }
+  discard_(cards) { this.discard.push(...(Array.isArray(cards)?cards:[cards])); }
+}
+
+class Hand {
+  constructor() { this.cards=[]; this.bet=0; this.stood=false; this.surrendered=false; this.split=false; this.doubled=false; this.originalBet=0; }
+  add(c) { this.cards.push(c); }
+  score() {
+    let s=0, a=0;
+    for (let c of this.cards) { if(c.rank==='A'){a++;s+=11;}else s+=c.getValue(); }
+    while(s>21&&a--) s-=10;
+    return s;
+  }
+  busted() { return this.score()>21; }
+  blackjack() { return this.cards.length===2&&this.score()===21; }
+}
+
+class Blackjack {
+  constructor(decks=6) {
+    this.shoe=new Shoe(decks);
+    this.dealer=new Hand();
+    this.hands=[new Hand()];
+    this.idx=0;
+    this.chips=0;
+  }
+  deal() {
+    this.dealer=new Hand(); this.hands=[new Hand()]; this.idx=0;
+    this.hands[0].add(this.shoe.deal()); this.dealer.add(this.shoe.deal());
+    this.hands[0].add(this.shoe.deal()); this.dealer.add(this.shoe.deal());
+  }
+  bet(amt) { this.hands[0].bet=amt; this.hands[0].originalBet=amt; }
+  hit(i=this.idx) { const c=this.shoe.deal(); this.hands[i].add(c); if(this.hands[i].busted()) this.next(i); return c; }
+  stand(i=this.idx) { this.hands[i].stood=true; this.next(i); }
+  surrender(i=this.idx) { this.hands[i].surrendered=true; this.next(i); }
+  double(i=this.idx) {
+    const h=this.hands[i];
+    h.doubled=true; h.bet*=2; this.hit(i);
+    if(!h.busted()) this.stand(i);
+  }
+  split(i=this.idx) {
+    const h=this.hands[i];
+    const n=new Hand();
+    n.bet=h.bet; n.originalBet=h.originalBet; n.split=true; h.split=true;
+    n.add(h.cards.pop()); n.add(this.shoe.deal()); h.add(this.shoe.deal());
+    this.hands.splice(i+1,0,n);
+  }
+  dealerHit() { const c=this.shoe.deal(); this.dealer.add(c); return c; }
+  dealerShouldHit() {
+    const s=this.dealer.score();
+    if(s<17) return true;
+    if(s===17) {
+      let hard=0,a=0;
+      for(let c of this.dealer.cards) c.rank==='A'?a++:hard+=c.getValue();
+      return a>0&&hard<=6; // H17 – hit soft 17
+    }
+    return false;
+  }
+  next(i) { if(i<this.hands.length-1) this.idx=i+1; }
+  settle() {
+    this.shoe.discard_([...this.dealer.cards]);
+    for(let h of this.hands) this.shoe.discard_([...h.cards]);
+    this.dealer=new Hand(); this.hands=[new Hand()]; this.idx=0;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  NFC WebSocket Bridge
+// ════════════════════════════════════════════════════════════
+class NFCBridge {
+  constructor(onRead, onWriteResult) {
+    this.onRead = onRead;
+    this.onWriteResult = onWriteResult;
+    this.ws = null;
+    this.connect();
+  }
+  connect() {
+    try {
+      this.ws = new WebSocket('ws://localhost:8765');
+      this.ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'card_read')    this.onRead(data);
+        if (data.type === 'write_result') this.onWriteResult(data);
+      };
+      this.ws.onclose = () => setTimeout(() => this.connect(), 2000);
+    } catch(e) {}
+  }
+  requestWrite(balance) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN)
+      this.ws.send(JSON.stringify({ type: 'prepare_write', balance }));
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  State
+// ════════════════════════════════════════════════════════════
+const game = new Blackjack(6);
+
+let cardBalance   = 0;   // current balance on the physical chip
+let sessionLoad   = 0;   // total amount deducted across all loads this session
+let selectedBet   = 0;
+let gamePhase     = 'idle';       // idle | awaiting_deduct | betting | playing | cashout
+let pendingAction = null;         // what to do after next write confirm
+
+// DOM refs
+const nfcScreen     = document.getElementById('nfc-screen');
+const nfcStatus     = document.getElementById('nfc-status');
+const amountModal   = document.getElementById('amount-modal');
+const modalBal      = document.getElementById('modal-balance-val');
+const writeScreen   = document.getElementById('write-screen');
+const writeAmount   = document.getElementById('write-amount');
+const gameScreen    = document.getElementById('game-screen');
+const hud           = document.getElementById('hud');
+const hudBalance    = document.getElementById('hud-balance');
+const hudBet        = document.getElementById('hud-bet');
+const dealerCards   = document.getElementById('dealer-cards');
+const playerCards   = document.getElementById('player-cards');
+const dealerScore   = document.getElementById('dealer-score');
+const playerScore   = document.getElementById('player-score');
+const betBar        = document.getElementById('bet-bar');
+const betDisplay    = document.getElementById('bet-display');
+const dealBtn       = document.getElementById('deal-btn');
+const actionBar     = document.getElementById('action-bar');
+const resultOverlay = document.getElementById('result-overlay');
+const resultText    = document.getElementById('result-text');
+const toast         = document.getElementById('toast');
+
+// ════════════════════════════════════════════════════════════
+//  NFC Bridge callbacks
+// ════════════════════════════════════════════════════════════
+const bridge = new NFCBridge(
+  // ── on card read ──────────────────────────────────────────
+  (data) => {
+    if (gamePhase === 'idle') {
+      cardBalance = data.balance ?? 0;
+      if (cardBalance <= 0) {
+        nfcStatus.textContent = '⚠ Card has no balance. Ask cashier to reload.';
+        return;
+      }
+      // Show how-much modal
+      modalBal.textContent = `$${cardBalance}`;
+      document.getElementById('custom-amount').value = '';
+      document.getElementById('custom-amount').max = cardBalance;
+      amountModal.classList.add('show');
+    }
+    // taps during 'awaiting_deduct' are handled by the write flow
+  },
+
+  // ── on write confirmed ────────────────────────────────────
+  (data) => {
+    writeScreen.classList.remove('show');
+
+    if (!data.success) {
+      showToast('⚠ Card write failed — please tap again.');
+      writeScreen.classList.add('show');
+      return;
+    }
+
+    cardBalance = data.balance;
+
+    if (pendingAction === 'start_session') {
+      // Deduction written — now start the game
+      pendingAction = null;
+      amountModal.classList.remove('show');
+      nfcScreen.classList.add('hidden');
+      setTimeout(() => { nfcScreen.style.display = 'none'; }, 600);
+      gameScreen.classList.add('show');
+      hud.style.display = 'flex';
+      gamePhase = 'betting';
+      updateHUD();
+      showToast(`$${sessionLoad} loaded — card balance: $${cardBalance}`);
+
+    } else if (pendingAction === 'cashout') {
+      // Return written — session over
+      pendingAction = null;
+      const net = game.chips - sessionLoad;
+      const label = net >= 0 ? `+$${net}` : `-$${Math.abs(net)}`;
+      showToast(`✓ Card updated to $${cardBalance} (${label})`);
+      setTimeout(() => resetToNFC(), 2200);
+
+    } else if (pendingAction === 'reload') {
+      // Reload deducted — resume playing
+      pendingAction = null;
+      showToast(`$${sessionLoad} reloaded — balance: $${cardBalance}`);
+      writeScreen.classList.remove('show');
+      gamePhase = 'betting';
+      updateHUD();
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════
+//  Amount modal — choose how much to load
+// ════════════════════════════════════════════════════════════
+document.getElementById('btn-use-all').addEventListener('click', () => {
+  confirmLoad(cardBalance);
+});
+document.getElementById('btn-use-custom').addEventListener('click', () => {
+  const v = parseInt(document.getElementById('custom-amount').value);
+  if (!v || v <= 0)          { showToast('Enter an amount'); return; }
+  if (v > cardBalance)       { showToast(`Max is $${cardBalance}`); return; }
+  confirmLoad(v);
+});
+document.getElementById('custom-amount').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const v = parseInt(document.getElementById('custom-amount').value);
+  if (!v || v <= 0)    { showToast('Enter an amount'); return; }
+  if (v > cardBalance) { showToast(`Max is $${cardBalance}`); return; }
+  // Route to either confirmLoad or reload depending on context
+  document.getElementById('btn-use-custom').click();
+});
+
+function confirmLoad(amount) {
+  sessionLoad  += amount;   // accumulate across all loads
+  game.chips    = amount;
+  selectedBet   = 0;
+  betDisplay.value = 0;
+  dealBtn.disabled = true;
+
+  // Deduct from card immediately — show tap prompt
+  const newCardBal = cardBalance - amount;
+  pendingAction    = 'start_session';
+
+  showWriteScreen(
+    '💳 Tap to Pay',
+    `-$${amount}`,
+    `Card balance will become $${newCardBal}`,
+    '#ff6b6b'
+  );
+  bridge.requestWrite(newCardBal);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Bet / Deal
+// ════════════════════════════════════════════════════════════
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const v = parseInt(chip.getAttribute('data-v'));
+    if (chip.classList.contains('selected')) {
+      chip.classList.remove('selected');
+      game.chips += v; selectedBet = 0;
+      betDisplay.value = 0; dealBtn.disabled = true;
+      updateHUD(); return;
+    }
+    document.querySelectorAll('.chip.selected').forEach(c => {
+      game.chips += parseInt(c.getAttribute('data-v'));
+      c.classList.remove('selected');
+    });
+    if (game.chips < v) { showToast('Not enough balance'); return; }
+    game.chips -= v; selectedBet = v;
+    betDisplay.value = v; chip.classList.add('selected');
+    dealBtn.disabled = false; updateHUD();
+  });
+});
+
+dealBtn.addEventListener('click', () => {
+  if (selectedBet <= 0) return;
+  game.bet(selectedBet);
+  betBar.style.display = 'none';
+  actionBar.classList.add('show');
+  game.deal();
+  renderInitial();
+  gamePhase = 'playing';
+  updateHUD();
+  computeControls();
+});
+
+// ════════════════════════════════════════════════════════════
+//  Game actions
+// ════════════════════════════════════════════════════════════
+document.getElementById('btn-hit').addEventListener('click', () => {
+  const c = game.hit();
+  addCard(c, playerCards);
+  updateScores();
+  if (game.hands[game.idx].busted()) {
+    revealDealer();
+    setTimeout(() => endRound('lose'), 700);
+  } else { computeControls(); }
+});
+
+document.getElementById('btn-stand').addEventListener('click', () => {
+  game.stand(); disableActions();
+  revealDealer();
+  setTimeout(() => runDealer(), 600);
+});
+
+document.getElementById('btn-double').addEventListener('click', () => {
+  const h = game.hands[game.idx];
+  if (game.chips < h.originalBet) return;
+  game.chips -= h.originalBet;
+  game.double();
+  addCard(h.cards[h.cards.length-1], playerCards, false, false, true);
+  updateHUD(); updateScores();
+  if (!h.busted()) {
+    disableActions(); revealDealer();
+    setTimeout(() => runDealer(), 600);
+  } else { setTimeout(() => endRound('lose'), 700); }
+});
+
+document.getElementById('btn-split').addEventListener('click', () => {
+  if (game.chips < game.hands[game.idx].bet) return;
+  game.chips -= game.hands[game.idx].bet;
+  game.split();
+  playerCards.innerHTML = '';
+  for (let h of game.hands) h.cards.forEach(c => addCard(c, playerCards));
+  updateHUD(); updateScores(); computeControls();
+});
+
+document.getElementById('btn-surrender').addEventListener('click', () => {
+  game.surrender();
+  const h = game.hands[game.idx];
+  game.chips += Math.floor(h.originalBet / 2);
+  endRound('surrender');
+});
+
+// ════════════════════════════════════════════════════════════
+//  Dealer play
+// ════════════════════════════════════════════════════════════
+function runDealer() {
+  if (game.dealerShouldHit()) {
+    const c = game.dealerHit();
+    addCard(c, dealerCards, true);
+    updateScores();
+    setTimeout(runDealer, 700);
+  } else {
+    setTimeout(determineOutcome, 400);
+  }
+}
+
+function determineOutcome() {
+  const h = game.hands[game.idx];
+  const ps = h.score(), ds = game.dealer.score();
+  if      (h.busted())                                    endRound('lose');
+  else if (game.dealer.busted())                          endRound('win');
+  else if (h.blackjack() && !game.dealer.blackjack())     endRound('blackjack');
+  else if (game.dealer.blackjack() && !h.blackjack())     endRound('lose');
+  else if (ps > ds)                                       endRound('win');
+  else if (ds > ps)                                       endRound('lose');
+  else                                                    endRound('push');
+}
+
+// ════════════════════════════════════════════════════════════
+//  End round — no chip tap, just update in-memory chips
+// ════════════════════════════════════════════════════════════
+function endRound(result) {
+  gamePhase = 'ended';
+  disableActions();
+
+  const h    = game.hands[game.idx];
+  const base = h.originalBet || h.bet || selectedBet || 0;
+  const bet  = h.doubled ? base * 2 : base;
+  let payout = 0, msg = '', cls = '';
+
+  if      (result === 'blackjack') { payout = Math.round(base*2.5); msg = `BLACKJACK! +$${Math.round(base*1.5)}`; cls = 'win'; }
+  else if (result === 'win')       { payout = bet * 2;              msg = `YOU WIN! +$${bet}`;                    cls = 'win'; }
+  else if (result === 'push')      { payout = bet;                  msg = 'PUSH';                                 cls = 'push'; }
+  else if (result === 'surrender') { payout = Math.floor(base/2);   msg = `SURRENDER (-$${Math.floor(base/2)})`; cls = 'loss'; }
+  else                             { payout = 0;                    msg = 'YOU LOSE';                             cls = 'loss'; }
+
+  game.chips += payout;
+  updateHUD();
+
+  resultOverlay.className = `result-overlay ${cls} show`;
+  resultText.textContent  = msg;
+
+  setTimeout(() => {
+    resultOverlay.classList.remove('show');
+    game.settle();
+    dealerCards.innerHTML = '';
+    playerCards.innerHTML = '';
+    dealerScore.textContent = 'Dealer';
+    playerScore.textContent = 'Player';
+
+    if (game.chips > 0) {
+      resetBetUI();
+    } else {
+      // Out of chips — prompt to reload or leave
+      showOutOfChipsPrompt();
+    }
+  }, 2200);
+}
+
+// ════════════════════════════════════════════════════════════
+//  Out of chips prompt
+// ════════════════════════════════════════════════════════════
+function showOutOfChipsPrompt() {
+  gamePhase = 'idle';
+  if (cardBalance <= 0) {
+    showToast('Card is empty. Session ended.');
+    setTimeout(resetToNFC, 2000);
+    return;
+  }
+  // Reuse amount modal — ask how much to reload
+  modalBal.textContent = `$${cardBalance}`;
+  document.getElementById('modal-balance-val').parentElement.previousElementSibling.textContent = 'Out of chips — reload?';
+  document.getElementById('custom-amount').value = '';
+  document.getElementById('custom-amount').max = cardBalance;
+
+  // Override buttons for reload context
+  document.getElementById('btn-use-all').onclick   = () => reloadChips(cardBalance);
+  document.getElementById('btn-use-custom').onclick = () => {
+    const v = parseInt(document.getElementById('custom-amount').value);
+    if (!v || v <= 0 || v > cardBalance) { showToast(`Max is $${cardBalance}`); return; }
+    reloadChips(v);
+  };
+  amountModal.classList.add('show');
+}
+
+function reloadChips(amount) {
+  game.chips   = amount;
+  selectedBet  = 0;
+
+  const newCardBal = cardBalance - amount;
+  pendingAction    = 'reload';
+
+  showWriteScreen(
+    '💳 Tap to Reload',
+    `-$${amount}`,
+    `Card balance will become $${newCardBal}`,
+    '#ff9800'
+  );
+  bridge.requestWrite(newCardBal);
+  amountModal.classList.remove('show');
+
+  // Deduct from sessionLoad total so net P&L stays accurate
+  sessionLoad += amount;
+}
+
+// ════════════════════════════════════════════════════════════
+//  Cash Out
+// ════════════════════════════════════════════════════════════
+function initiateCashout() {
+  if (gamePhase === 'playing') { showToast('Finish the current hand first'); return; }
+
+  const returnAmount = cardBalance + game.chips;  // card already deducted at load time
+  const net          = game.chips - sessionLoad;
+  const netLabel     = net >= 0 ? `+$${net}` : `-$${Math.abs(net)}`;
+
+  pendingAction = 'cashout';
+  showWriteScreen(
+    net >= 0 ? '🎉 Cash Out' : '👋 Cash Out',
+    netLabel,
+    `Tap card to save $${returnAmount}`,
+    net >= 0 ? '#4dff91' : '#ff6b6b',
+    true  // cancellable
+  );
+  bridge.requestWrite(returnAmount);
+}
+
+function cancelCashout() {
+  pendingAction = null;
+  writeScreen.classList.remove('show');
+}
+
+// ════════════════════════════════════════════════════════════
+//  Helpers
+// ════════════════════════════════════════════════════════════
+function showWriteScreen(title, amount, instruction, color, cancellable = false) {
+  document.getElementById('cashout-title').textContent = title;
+  writeAmount.textContent      = amount;
+  writeAmount.style.color      = color;
+  document.querySelector('#write-screen .write-instruction').textContent = instruction;
+  document.getElementById('btn-cancel-write').style.display = cancellable ? '' : 'none';
+  writeScreen.classList.add('show');
+}
+
+function renderInitial() {
+  dealerCards.innerHTML = ''; playerCards.innerHTML = '';
+  const h = game.hands[0];
+  const seq = [
+    { c: h.cards[0],           area: playerCards, hidden: false },
+    { c: game.dealer.cards[0], area: dealerCards,  hidden: true  },
+    { c: h.cards[1],           area: playerCards, hidden: false },
+    { c: game.dealer.cards[1], area: dealerCards,  hidden: false },
+  ];
+  seq.forEach((s,i) => setTimeout(() => { addCard(s.c, s.area, s.dealer, s.hidden); updateScores(); }, i*280));
+}
+
+function addCard(card, area, isDealer=false, hidden=false, doubled=false) {
+  const el = document.createElement('div');
+  el.className = `card ${card.color}${doubled?' doubled':''}`;
+  if (hidden) { el.classList.add('card-back'); el.innerHTML = '<div></div>'; }
+  else { el.textContent = `${card.rank}${card.suit}`; }
+  area.appendChild(el);
+  return el;
+}
+
+function revealDealer() {
+  const el = dealerCards.children[0];
+  const c  = game.dealer.cards[0];
+  if (!el || !c) return;
+  el.classList.remove('card-back');
+  el.textContent = `${c.rank}${c.suit}`;
+  el.classList.add(c.color);
+  updateScores();
+}
+
+function updateScores() {
+  const ps = game.hands[game.idx]?.score() ?? 0;
+  playerScore.textContent = `Player: ${ps}`;
+  const revealed = !dealerCards.children[0]?.classList.contains('card-back');
+  dealerScore.textContent = revealed ? `Dealer: ${game.dealer.score()}` : 'Dealer: ?';
+}
+
+function updateHUD() {
+  hudBalance.textContent = `$${game.chips}`;
+  hudBet.textContent     = `$${selectedBet}`;
+}
+
+function computeControls() {
+  const h = game.hands[game.idx];
+  if (!h) return;
+  const canDouble  = h.cards.length===2 && !h.split && game.chips>=(h.originalBet||h.bet||0);
+  const canSplit   = h.cards.length===2 && h.cards[0]?.getValue()===h.cards[1]?.getValue() && game.chips>=h.bet;
+  const canSurr    = h.cards.length===2 && !h.split;
+  document.getElementById('btn-hit').disabled       = false;
+  document.getElementById('btn-stand').disabled     = false;
+  document.getElementById('btn-double').style.display  = canDouble ? '' : 'none';
+  document.getElementById('btn-split').style.display   = canSplit  ? '' : 'none';
+  document.getElementById('btn-surrender').style.display = canSurr ? '' : 'none';
+}
+
+function disableActions() {
+  ['btn-hit','btn-stand','btn-double','btn-split','btn-surrender']
+    .forEach(id => document.getElementById(id).disabled = true);
+}
+
+function resetBetUI() {
+  gamePhase    = 'betting';
+  selectedBet  = 0;
+  betDisplay.value = 0;
+  document.querySelectorAll('.chip.selected').forEach(c => c.classList.remove('selected'));
+  dealBtn.disabled = true;
+  betBar.style.display = '';
+  actionBar.classList.remove('show');
+  updateHUD();
+
+  // Restore default modal button handlers in case they were overridden by reload flow
+  document.getElementById('btn-use-all').onclick   = () => confirmLoad(cardBalance);
+  document.getElementById('btn-use-custom').onclick = () => {
+    const v = parseInt(document.getElementById('custom-amount').value);
+    if (!v || v <= 0) { showToast('Enter an amount'); return; }
+    if (v > cardBalance) { showToast(`Max is $${cardBalance}`); return; }
+    confirmLoad(v);
+  };
+}
+
+function resetToNFC() {
+  gamePhase = 'idle';
+  cardBalance = 0; sessionLoad = 0;
+  nfcScreen.style.display = '';
+  nfcScreen.classList.remove('hidden');
+  nfcStatus.textContent = 'Tap your NFC card to begin';
+  gameScreen.classList.remove('show');
+  hud.style.display = 'none';
+  writeScreen.classList.remove('show');
+  resetBetUI();
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>
