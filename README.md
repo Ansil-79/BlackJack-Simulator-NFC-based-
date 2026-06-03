@@ -30,15 +30,15 @@ Download index.html and nfc_server.py into your local system
 
 
 SETTING UP THE HARDWARE:
-conncet any compatible nfc reader to your system and preload your nfc tags using any software from apple store
+connet any compatible nfc reader to your system and preload your nfc tags using any software from apple store
 Eg: For this project, ACR122U -A9 was used as reader, NTAG215 was used as nfc tags, and 'NFC TOOLS' was used to preload the chips.
 Load the chip in the given format: BALANCE:250
 
 GATHERING THE LIBRARIES REQUIRED:
 In the terminal, run:
-pip install pyscard websockets
-python3 nfc_server.py
-Open `index.html` in your browser.
+1. pip install pyscard websockets
+2. python3 nfc_server.py
+Then, Open `index.html` in your browser.
 ```
 
 
