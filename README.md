@@ -41,8 +41,11 @@ python3 nfc_server.py
 Open `index.html` in your browser.
 ```
 
-## Screenshots
-<img width="1047" height="78" alt="image" src="https://github.com/user-attachments/assets/6f946434-fb37-4f38-8e57-7e573f901345" />
+
+# Demo Video:
+https://drive.google.com/file/d/1MeWXi_cNxmfGNmEsVV94_PDxY1V564T1/view?usp=drivesdk
+
+
 
 
 
